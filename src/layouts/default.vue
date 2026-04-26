@@ -32,6 +32,20 @@ const links = [[{
     open.value = false
   }
 }, {
+  label: '套餐管理',
+  icon: 'i-lucide-package',
+  to: '/plans',
+  onSelect: () => {
+    open.value = false
+  }
+}, {
+  label: '节点管理',
+  icon: 'i-lucide-server',
+  to: '/nodes',
+  onSelect: () => {
+    open.value = false
+  }
+}, {
   label: 'Settings',
   to: '/settings',
   icon: 'i-lucide-settings',

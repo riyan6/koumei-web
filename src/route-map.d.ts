@@ -48,6 +48,20 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/nodes': RouteRecordInfo<
+      '/nodes',
+      '/nodes',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/plans': RouteRecordInfo<
+      '/plans',
+      '/plans',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/settings': RouteRecordInfo<
       '/settings',
       '/settings',
@@ -114,6 +128,18 @@ declare module 'vue-router/auto-routes' {
     'src/pages/inbox.vue': {
       routes:
         | '/inbox'
+      views:
+        | never
+    }
+    'src/pages/nodes.vue': {
+      routes:
+        | '/nodes'
+      views:
+        | never
+    }
+    'src/pages/plans.vue': {
+      routes:
+        | '/plans'
       views:
         | never
     }
