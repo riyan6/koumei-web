@@ -20,8 +20,10 @@ const searchQuery = ref('')
 
 const editingNode = ref<Node | null>(null)
 const deletingNode = ref<Node | null>(null)
+const deployingNode = ref<Node | null>(null)
 const showEditModal = ref(false)
 const showDeleteModal = ref(false)
+const showDeploySlideover = ref(false)
 
 const loadNodes = async () => {
   loading.value = true
@@ -54,10 +56,16 @@ const openDelete = (node: Node) => {
   showDeleteModal.value = true
 }
 
+const openDeploy = (node: Node) => {
+  deployingNode.value = node
+  showDeploySlideover.value = true
+}
+
 const getRowItems = (row: Row<Node>) => {
   return [
     { type: 'label' as const, label: '操作' },
     { label: '编辑节点', icon: 'i-lucide-pencil', onSelect() { openEdit(row.original) } },
+    { label: '部署到 sing-box', icon: 'i-lucide-terminal-square', onSelect() { openDeploy(row.original) } },
     { type: 'separator' as const },
     { label: '删除节点', icon: 'i-lucide-trash', color: 'error' as const, onSelect() { openDelete(row.original) } }
   ]
@@ -219,4 +227,11 @@ const columns: TableColumn<Node>[] = [
   >
     <span />
   </NodesDeleteModal>
+
+  <NodesDeploySlideover
+    v-if="deployingNode"
+    v-model="showDeploySlideover"
+    :node="deployingNode"
+    @update:model-value="(v: boolean) => { if (!v) deployingNode = null }"
+  />
 </template>

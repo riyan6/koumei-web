@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { useColorMode } from '@vueuse/core'
+import { clearAuthToken } from '../utils/auth'
 
 defineProps<{
   collapsed?: boolean
@@ -9,17 +11,24 @@ defineProps<{
 
 const colorMode = useColorMode()
 const appConfig = useAppConfig()
+const router = useRouter()
 
 const colors = ['red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose']
 const neutrals = ['slate', 'gray', 'zinc', 'neutral', 'stone']
 
 const user = ref({
-  name: 'Benjamin Canac',
+  name: 'Koumei Admin',
   avatar: {
-    src: 'https://github.com/benjamincanac.png',
-    alt: 'Benjamin Canac'
+    src: 'https://api.dicebear.com/9.x/initials/svg?seed=Koumei',
+    alt: 'Koumei Admin'
   }
 })
+
+// logout 退出登录并跳转登录页
+async function logout() {
+  clearAuthToken()
+  await router.replace('/login')
+}
 
 const items = computed<DropdownMenuItem[][]>(() => ([[{
   type: 'label',
@@ -131,7 +140,10 @@ const items = computed<DropdownMenuItem[][]>(() => ([[{
   target: '_blank'
 }], [{
   label: 'Log out',
-  icon: 'i-lucide-log-out'
+  icon: 'i-lucide-log-out',
+  onSelect: async () => {
+    await logout()
+  }
 }]]))
 </script>
 

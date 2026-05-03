@@ -53,7 +53,7 @@ type Schema = z.output<typeof schema>
 
 const defaultState = (): Partial<Schema> => ({
   email: null,
-  password: null,
+  password: '',
   plan_id: null,
   status: 1,
   is_admin: 0,
@@ -66,7 +66,7 @@ function fillForm() {
   if (props.user) {
     Object.assign(state, {
       email: props.user.email || null,
-      password: null,
+      password: '',
       plan_id: props.user.plan_id,
       status: props.user.status,
       is_admin: props.user.is_admin,

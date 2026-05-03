@@ -97,6 +97,7 @@ export interface Node {
   name: string
   host: string | null
   port: number
+  uuid: string | null
   protocol_settings: Record<string, any> | null
   show: boolean
   sort: number
@@ -110,6 +111,7 @@ export interface NodeFormData {
   name: string
   host?: string | null
   port: number
+  uuid?: string | null
   protocol_settings: Record<string, any>
   show?: boolean
   sort: number

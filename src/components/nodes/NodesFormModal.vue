@@ -28,6 +28,7 @@ const schema = z.object({
   name: z.string().min(1, '节点名称不能为空'),
   host: z.string().min(1, '主机不能为空'),
   port: z.number().int().min(1).max(65535, '端口必须在 1-65535 之间'),
+  uuid: z.string().min(1, 'UUID 不能为空'),
   sort: z.number().int().min(0),
   remarks: z.string().nullable().optional(),
   show: z.boolean().default(true),
@@ -49,6 +50,7 @@ const defaultState = (): Partial<Schema> => ({
   name: '',
   host: '',
   port: 443,
+  uuid: '',
   sort: 0,
   remarks: null,
   show: true,
@@ -72,6 +74,7 @@ const fillForm = () => {
       name: n.name,
       host: n.host || '',
       port: n.port || 443,
+      uuid: n.uuid || '',
       sort: n.sort,
       remarks: n.remarks || null,
       show: n.show
@@ -108,6 +111,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     name: event.data.name,
     host: event.data.host,
     port: event.data.port,
+    uuid: event.data.uuid,
     protocol_settings: {
       tls: 2, // REALITY
       flow: 'xtls-rprx-vision',
@@ -182,6 +186,11 @@ const generateShortId = () => {
   state.reality_short_id = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
 }
 
+// generateNodeUUID 生成随机节点 UUID
+const generateNodeUUID = () => {
+  state.uuid = crypto.randomUUID()
+}
+
 const utlsOptions = [
   { label: 'Chrome', value: 'chrome' },
   { label: 'Firefox', value: 'firefox' }
@@ -211,6 +220,13 @@ const utlsOptions = [
             <UInput v-model.number="state.sort" type="number" class="w-full" />
           </UFormField>
         </div>
+
+        <UFormField label="节点 UUID" name="uuid" required>
+          <div class="flex gap-2">
+            <UInput v-model="state.uuid" class="w-full" placeholder="点击右侧按钮自动生成 UUID" />
+            <UButton label="生成" color="neutral" variant="subtle" icon="i-lucide-refresh-cw" @click="generateNodeUUID" />
+          </div>
+        </UFormField>
 
         <!-- 网络配置 -->
         <div class="rounded-lg border border-default p-4 space-y-4">

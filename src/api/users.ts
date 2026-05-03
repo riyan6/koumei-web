@@ -1,30 +1,7 @@
 import type { AdminUser, AdminUserFormData } from '../types'
+import { request } from './request'
 
 const BASE_URL = '/api/admin/users'
-
-interface ApiResponse<T = unknown> {
-  code: number
-  msg: string
-  data?: T
-}
-
-async function request<T>(url: string, options?: RequestInit): Promise<ApiResponse<T>> {
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options
-  })
-  const text = await res.text()
-  let body: ApiResponse<T>
-  try {
-    body = JSON.parse(text)
-  } catch {
-    throw new Error(`服务器返回了非 JSON 响应 (${res.status})`)
-  }
-  if (!res.ok) {
-    throw new Error((body as { error?: string }).error || res.statusText)
-  }
-  return body
-}
 
 export async function fetchUsers(params?: { plan_id?: number; status?: number }): Promise<AdminUser[]> {
   const query = new URLSearchParams()
