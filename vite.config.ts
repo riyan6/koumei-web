@@ -4,6 +4,8 @@ import vueRouter from 'vue-router/vite'
 import vueLayouts from 'vite-plugin-vue-layouts'
 import ui from '@nuxt/ui/vite'
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -18,20 +20,15 @@ export default defineConfig(({ mode }) => {
         }
       }
     },
-    plugins: [
-      vueRouter({
-        dts: 'src/route-map.d.ts'
-      }),
-      vueLayouts(),
-      vue(),
-      ui({
-        ui: {
-          colors: {
-            primary: 'green',
-            neutral: 'zinc'
-          }
+    plugins: [vueRouter({
+      dts: 'src/route-map.d.ts'
+    }), vueLayouts(), vue(), ui({
+      ui: {
+        colors: {
+          primary: 'green',
+          neutral: 'zinc'
         }
-      })
-    ]
-  }
+      }
+    }), cloudflare()]
+  };
 })
