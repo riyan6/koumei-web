@@ -75,7 +75,8 @@ meta:
 
 <template>
   <div class="min-h-screen bg-default flex items-center justify-center px-4 py-10">
-    <div class="w-full max-w-xl">
+    <!-- 收紧登录卡片宽度，避免大屏下内容显得过宽松散 -->
+    <div class="w-full max-w-md">
       <UCard class="border border-default shadow-sm">
         <div class="flex flex-col items-center text-center space-y-5">
           <div class="inline-flex items-center justify-center size-16 rounded-full bg-primary/10">
