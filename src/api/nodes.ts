@@ -26,10 +26,8 @@ async function request<T>(url: string, options?: RequestInit): Promise<ApiRespon
   return body
 }
 
-export async function fetchNodes(includeDisabled = false, type = ''): Promise<Node[]> {
-  const params = new URLSearchParams({ include_disabled: String(includeDisabled) })
-  if (type) params.set('type', type)
-  const res = await request<Node[]>(`${BASE_URL}?${params}`)
+export async function fetchNodes(includeDisabled = false): Promise<Node[]> {
+  const res = await request<Node[]>(`${BASE_URL}?include_disabled=${includeDisabled}`)
   return res.data ?? []
 }
 

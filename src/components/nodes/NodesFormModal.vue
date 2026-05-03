@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, computed } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import * as z from 'zod'
+import nacl from 'tweetnacl'
 import type { FormSubmitEvent } from '@nuxt/ui'
 import type { Node } from '../../types'
 import { createNode, updateNode } from '../../api/nodes'
@@ -21,149 +22,133 @@ const open = ref(props.modelValue ?? false)
 watch(() => props.modelValue, (val) => { if (val !== undefined) open.value = val })
 watch(open, (val) => emit('update:modelValue', val))
 
-// ---- schema ----
-const realitySettingsSchema = z.object({
-  dest: z.string().min(1, '请填写伪装站点'),
-  private_key: z.string().min(1, '请填写私钥'),
-  public_key: z.string().min(1, '请填写公钥'),
-  short_id: z.string().min(1, '请填写 Short ID'),
-  server_name: z.string().optional(),
-  utls: z.string().optional()
-})
-
+// 表单校验规则
 const schema = z.object({
-  type: z.string().min(1),
+  type: z.string().default('vless'),
   name: z.string().min(1, '节点名称不能为空'),
-  listen_ip: z.string().min(1),
-  server_port: z.number().int().min(1).max(65535),
-  network: z.string(),
-  tls: z.number().int(),
-  flow: z.string().nullable(),
-  cipher: z.string().nullable(),
-  ws_enabled: z.boolean(),
-  ws_url: z.string().nullable(),
-  push_interval: z.number().int().min(1),
-  pull_interval: z.number().int().min(1),
-  enabled: z.boolean(),
-  sort: z.number().int(),
-  remarks: z.string().nullable(),
-  reality: realitySettingsSchema.optional()
+  host: z.string().min(1, '主机不能为空'),
+  port: z.number().int().min(1).max(65535, '端口必须在 1-65535 之间'),
+  sort: z.number().int().min(0),
+  remarks: z.string().nullable().optional(),
+  show: z.boolean().default(true),
+  // Reality settings
+  reality_short_id: z.string().min(1, '请填写 Short ID'),
+  reality_private_key: z.string().min(1, '请填写私钥'),
+  reality_public_key: z.string().min(1, '请填写公钥'),
+  reality_server_name: z.string().min(1, '请填写 Server Name'),
+  reality_server_port: z.number().int().min(1).max(65535),
+  reality_allow_insecure: z.boolean().default(false),
+  utls_fingerprint: z.string().default('chrome')
 })
 
 type Schema = z.output<typeof schema>
 
-// ---- state ----
+// 表单默认值
 const defaultState = (): Partial<Schema> => ({
   type: 'vless',
   name: '',
-  listen_ip: '0.0.0.0',
-  server_port: 443,
-  network: 'tcp',
-  tls: 0,
-  flow: null,
-  cipher: null,
-  ws_enabled: true,
-  ws_url: null,
-  push_interval: 60,
-  pull_interval: 60,
-  enabled: true,
+  host: '',
+  port: 443,
   sort: 0,
   remarks: null,
-  reality: undefined
+  show: true,
+  reality_short_id: '',
+  reality_private_key: '',
+  reality_public_key: '',
+  reality_server_name: '',
+  reality_server_port: 443,
+  reality_allow_insecure: false,
+  utls_fingerprint: 'chrome'
 })
 
 const state = reactive<Partial<Schema>>(defaultState())
 
-// reality sub-fields as a separate reactive object for easier binding
-const reality = reactive({
-  dest: '',
-  private_key: '',
-  public_key: '',
-  short_id: '',
-  server_name: '',
-  utls: 'chrome'
-})
-
-// ---- computed ----
-const isVless = computed(() => state.type === 'vless')
-const isShadowsocks = computed(() => state.type === 'shadowsocks')
-const isReality = computed(() => state.tls === 2)
-
-// ---- fill form ----
-function fillForm() {
+// 填充表单数据（编辑时回填节点信息，新增时重置为默认值）
+const fillForm = () => {
   if (props.node) {
     const n = props.node
     Object.assign(state, {
-      type: n.Type,
-      name: n.Name,
-      listen_ip: n.ListenIP,
-      server_port: n.ServerPort,
-      network: n.Network,
-      tls: n.TLS,
-      flow: n.Flow,
-      cipher: n.Cipher,
-      ws_enabled: n.WSEnabled,
-      ws_url: n.WSURL,
-      push_interval: n.PushInterval,
-      pull_interval: n.PullInterval,
-      enabled: n.Enabled,
-      sort: n.Sort,
-      remarks: n.Remarks
+      type: n.type,
+      name: n.name,
+      host: n.host || '',
+      port: n.port || 443,
+      sort: n.sort,
+      remarks: n.remarks || null,
+      show: n.show
     })
-    if (n.TLSSettings) {
-      Object.assign(reality, {
-        dest: n.TLSSettings.dest ?? '',
-        private_key: n.TLSSettings.private_key ?? '',
-        public_key: n.TLSSettings.public_key ?? '',
-        short_id: n.TLSSettings.short_id ?? '',
-        server_name: n.TLSSettings.server_name ?? '',
-        utls: n.TLSSettings.utls ?? 'chrome'
+
+    // 从 protocol_settings 中提取 Reality 相关配置
+    if (n.protocol_settings) {
+      const settings = n.protocol_settings as Record<string, any>
+      const realitySettings = settings.reality_settings || {}
+      const utlsSettings = settings.utls || {}
+
+      Object.assign(state, {
+        reality_short_id: realitySettings.short_id || '',
+        reality_private_key: realitySettings.private_key || '',
+        reality_public_key: realitySettings.public_key || '',
+        reality_server_name: realitySettings.server_name || '',
+        reality_server_port: realitySettings.server_port || 443,
+        reality_allow_insecure: realitySettings.allow_insecure || false,
+        utls_fingerprint: utlsSettings.fingerprint || 'chrome'
       })
     }
   } else {
     Object.assign(state, defaultState())
-    Object.assign(reality, { dest: '', private_key: '', public_key: '', short_id: '', server_name: '', utls: 'chrome' })
   }
 }
 
 onMounted(() => { if (open.value) fillForm() })
 watch(open, (val) => { if (val) fillForm() })
 
-// ---- submit ----
-async function onSubmit(event: FormSubmitEvent<Schema>) {
-  const payload: Parameters<typeof createNode>[0] = {
-    type: event.data.type,
+// 提交表单（组装 payload 并调用新增/更新接口）
+const onSubmit = async (event: FormSubmitEvent<Schema>) => {
+  const payload = {
+    type: 'vless',
     name: event.data.name,
-    listen_ip: event.data.listen_ip,
-    server_port: event.data.server_port,
-    network: event.data.network,
-    tls: event.data.tls,
-    flow: isVless.value ? (event.data.flow ?? null) : null,
-    decryption: isVless.value ? 'none' : null,
-    cipher: isShadowsocks.value ? (event.data.cipher ?? null) : null,
-    plugin: null,
-    plugin_opts: null,
-    server_key: null,
-    tls_settings: isReality.value ? {
-      dest: reality.dest,
-      private_key: reality.private_key,
-      public_key: reality.public_key,
-      short_id: reality.short_id,
-      server_name: reality.server_name || undefined,
-      utls: reality.utls || undefined
-    } : null,
-    ws_enabled: event.data.ws_enabled,
-    ws_url: event.data.ws_url ?? null,
-    push_interval: event.data.push_interval,
-    pull_interval: event.data.pull_interval,
-    enabled: event.data.enabled,
+    host: event.data.host,
+    port: event.data.port,
+    protocol_settings: {
+      tls: 2, // REALITY
+      flow: 'xtls-rprx-vision',
+      utls: {
+        enabled: true,
+        fingerprint: event.data.utls_fingerprint
+      },
+      network: 'tcp',
+      multiplex: {
+        brutal: {
+          enabled: false
+        },
+        enabled: false,
+        padding: false,
+        protocol: 'yamux'
+      },
+      encryption: {
+        enabled: false
+      },
+      network_settings: {
+        header: {
+          type: 'none'
+        }
+      },
+      reality_settings: {
+        short_id: event.data.reality_short_id,
+        public_key: event.data.reality_public_key,
+        private_key: event.data.reality_private_key,
+        server_name: event.data.reality_server_name,
+        server_port: event.data.reality_server_port,
+        allow_insecure: event.data.reality_allow_insecure
+      }
+    },
+    show: event.data.show,
     sort: event.data.sort,
-    remarks: event.data.remarks ?? null
+    remarks: event.data.remarks
   }
 
   try {
     if (props.node) {
-      await updateNode(props.node.ID, payload)
+      await updateNode(props.node.id, payload)
       toast.add({ title: '更新成功', description: `节点 "${payload.name}" 已更新`, color: 'success' })
     } else {
       await createNode(payload)
@@ -176,35 +161,26 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
   }
 }
 
-// ---- options ----
-const typeOptions = [
-  { label: 'VLESS', value: 'vless' },
-  { label: 'Shadowsocks', value: 'shadowsocks' }
-]
+// 将 Uint8Array 转为 base64url 编码字符串
+const toBase64Url = (bytes: Uint8Array) =>
+  btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
 
-const networkOptions = [
-  { label: 'TCP', value: 'tcp' },
-  { label: 'WebSocket', value: 'ws' },
-  { label: 'gRPC', value: 'grpc' }
-]
+// 生成 X25519 密钥对（Reality 协议使用）
+const generateRealityKeyPair = () => {
+  const kp = nacl.box.keyPair()
+  state.reality_private_key = toBase64Url(kp.secretKey)
+  state.reality_public_key = toBase64Url(kp.publicKey)
+}
 
-const vlessTlsOptions = [
-  { label: 'None', value: 0 },
-  { label: 'Reality', value: 2 }
-]
-
-const flowOptions = [
-  { label: 'none', value: null },
-  { label: 'xtls-rprx-vision', value: 'xtls-rprx-vision' }
-]
-
-const cipherOptions = [
-  { label: 'aes-128-gcm', value: 'aes-128-gcm' },
-  { label: 'aes-256-gcm', value: 'aes-256-gcm' },
-  { label: 'chacha20-ietf-poly1305', value: 'chacha20-ietf-poly1305' },
-  { label: '2022-blake3-aes-128-gcm', value: '2022-blake3-aes-128-gcm' },
-  { label: '2022-blake3-aes-256-gcm', value: '2022-blake3-aes-256-gcm' }
-]
+// 生成随机 Short ID（16 位 hex 字符串）
+const generateShortId = () => {
+  const bytes = new Uint8Array(8)
+  crypto.getRandomValues(bytes)
+  state.reality_short_id = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+}
 
 const utlsOptions = [
   { label: 'Chrome', value: 'chrome' },
@@ -216,7 +192,7 @@ const utlsOptions = [
   <UModal
     v-model:open="open"
     :title="node ? '编辑节点' : '新增节点'"
-    :description="node ? '修改节点信息' : '创建一个新的节点'"
+    :description="node ? '修改节点信息' : '创建一个新的节点 (VLESS-Reality-Vision)'"
     :ui="{ content: 'max-w-2xl' }"
   >
     <slot>
@@ -228,105 +204,76 @@ const utlsOptions = [
 
         <!-- 基础信息 -->
         <div class="grid grid-cols-2 gap-4">
-          <UFormField label="节点类型" name="type" required>
-            <USelect v-model="state.type" :items="typeOptions" class="w-full" />
-          </UFormField>
           <UFormField label="节点名称" name="name" required>
             <UInput v-model="state.name" class="w-full" placeholder="例如：VLESS-Reality节点" />
-          </UFormField>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <UFormField label="监听 IP" name="listen_ip">
-            <UInput v-model="state.listen_ip" class="w-full" placeholder="0.0.0.0" />
-          </UFormField>
-          <UFormField label="服务端口" name="server_port" required>
-            <UInput v-model.number="state.server_port" type="number" min="1" max="65535" class="w-full" />
-          </UFormField>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <UFormField label="网络类型" name="network">
-            <USelect v-model="state.network" :items="networkOptions" class="w-full" />
           </UFormField>
           <UFormField label="排序" name="sort">
             <UInput v-model.number="state.sort" type="number" class="w-full" />
           </UFormField>
         </div>
 
-        <!-- VLESS 专属 -->
-        <template v-if="isVless">
+        <!-- 网络配置 -->
+        <div class="rounded-lg border border-default p-4 space-y-4">
+          <p class="text-sm font-medium text-highlighted">网络配置</p>
+
           <div class="grid grid-cols-2 gap-4">
-            <UFormField label="安全性" name="tls">
-              <USelect v-model="state.tls" :items="vlessTlsOptions" class="w-full" />
+            <UFormField label="主机 IP" name="host" required>
+              <UInput v-model="state.host" class="w-full" placeholder="127.0.0.1" />
             </UFormField>
-            <UFormField label="流控 (Flow)" name="flow">
-              <USelect
-                :model-value="state.flow"
-                :items="flowOptions"
-                class="w-full"
-                @update:model-value="(v: string | null) => state.flow = v"
-              />
+            <UFormField label="端口" name="port" required>
+              <UInput v-model.number="state.port" type="number" min="1" max="65535" class="w-full" />
+            </UFormField>
+          </div>
+        </div>
+
+        <!-- Reality 配置 -->
+        <div class="rounded-lg border border-default p-4 space-y-4">
+          <p class="text-sm font-medium text-highlighted">Reality 配置</p>
+
+          <div class="grid grid-cols-2 gap-4">
+            <UFormField label="Server Name" name="reality_server_name" required>
+              <UInput v-model="state.reality_server_name" class="w-full" placeholder="www.amd.com" />
+            </UFormField>
+            <UFormField label="Server Port" name="reality_server_port" required>
+              <UInput v-model.number="state.reality_server_port" type="number" min="1" max="65535" class="w-full" />
             </UFormField>
           </div>
 
-          <!-- Reality 专属字段 -->
-          <template v-if="isReality">
-            <div class="rounded-lg border border-default p-4 space-y-4">
-              <p class="text-sm font-medium text-highlighted">Reality 配置</p>
-
-              <div class="grid grid-cols-2 gap-4">
-                <UFormField label="伪装站点 (dest)" name="reality.dest" required>
-                  <UInput v-model="reality.dest" class="w-full" placeholder="swdist.apple.com:443" />
-                </UFormField>
-                <UFormField label="Server Name" name="reality.server_name">
-                  <UInput v-model="reality.server_name" class="w-full" placeholder="swdist.apple.com" />
-                </UFormField>
-              </div>
-
-              <UFormField label="私钥 (Private Key)" name="reality.private_key" required>
-                <UInput v-model="reality.private_key" class="w-full" placeholder="私钥" />
-              </UFormField>
-
-              <UFormField label="公钥 (Public Key)" name="reality.public_key" required>
-                <UInput v-model="reality.public_key" class="w-full" placeholder="公钥" />
-              </UFormField>
-
-              <div class="grid grid-cols-2 gap-4">
-                <UFormField label="Short ID" name="reality.short_id" required>
-                  <UInput v-model="reality.short_id" class="w-full" placeholder="例如：498d8d61" />
-                </UFormField>
-                <UFormField label="uTLS 指纹" name="reality.utls">
-                  <USelect v-model="reality.utls" :items="utlsOptions" class="w-full" />
-                </UFormField>
-              </div>
+          <UFormField label="私钥 (Private Key)" name="reality_private_key" required>
+            <div class="flex gap-2">
+              <UInput v-model="state.reality_private_key" class="w-full" placeholder="私钥" />
+              <UButton label="生成" color="neutral" variant="subtle" icon="i-lucide-refresh-cw" @click="generateRealityKeyPair" />
             </div>
-          </template>
-        </template>
-
-        <!-- Shadowsocks 专属 -->
-        <template v-if="isShadowsocks">
-          <UFormField label="加密方式" name="cipher" required>
-            <USelect
-              :model-value="state.cipher ?? undefined"
-              :items="cipherOptions"
-              class="w-full"
-              placeholder="选择加密方式"
-              @update:model-value="(v: string | undefined) => state.cipher = v ?? null"
-            />
           </UFormField>
-        </template>
 
-        <!-- WebSocket & 通用 -->
+          <UFormField label="公钥 (Public Key)" name="reality_public_key" required>
+            <div class="flex gap-2">
+              <UInput v-model="state.reality_public_key" class="w-full" placeholder="公钥" />
+              <UButton label="生成" color="neutral" variant="subtle" icon="i-lucide-refresh-cw" @click="generateRealityKeyPair" />
+            </div>
+          </UFormField>
+
+          <div class="grid grid-cols-2 gap-4">
+            <UFormField label="Short ID" name="reality_short_id" required>
+              <div class="flex gap-2">
+                <UInput v-model="state.reality_short_id" class="w-full" placeholder="例如：9f2e807212cadb" />
+                <UButton label="生成" color="neutral" variant="subtle" icon="i-lucide-refresh-cw" @click="generateShortId" />
+              </div>
+            </UFormField>
+            <UFormField label="uTLS 指纹" name="utls_fingerprint">
+              <USelect v-model="state.utls_fingerprint" :items="utlsOptions" class="w-full" />
+            </UFormField>
+          </div>
+
+          <div class="flex items-center gap-6">
+            <UFormField label="允许不安全连接" name="reality_allow_insecure">
+              <USwitch v-model="state.reality_allow_insecure" />
+            </UFormField>
+          </div>
+        </div>
+
+        <!-- 备注和状态 -->
         <div class="grid grid-cols-2 gap-4">
-          <UFormField label="WebSocket URL" name="ws_url">
-            <UInput
-              :model-value="state.ws_url ?? ''"
-              class="w-full"
-              placeholder="ws://127.0.0.1:8893/ws"
-              @update:model-value="(v: string) => state.ws_url = v || null"
-            />
-          </UFormField>
           <UFormField label="备注" name="remarks">
             <UInput
               :model-value="state.remarks ?? ''"
@@ -335,24 +282,11 @@ const utlsOptions = [
               @update:model-value="(v: string) => state.remarks = v || null"
             />
           </UFormField>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <UFormField label="推送间隔 (秒)" name="push_interval">
-            <UInput v-model.number="state.push_interval" type="number" min="1" class="w-full" />
-          </UFormField>
-          <UFormField label="拉取间隔 (秒)" name="pull_interval">
-            <UInput v-model.number="state.pull_interval" type="number" min="1" class="w-full" />
-          </UFormField>
-        </div>
-
-        <div class="flex items-center gap-6">
-          <UFormField label="启用 WebSocket" name="ws_enabled">
-            <USwitch v-model="state.ws_enabled" />
-          </UFormField>
-          <UFormField label="启用节点" name="enabled">
-            <USwitch v-model="state.enabled" />
-          </UFormField>
+          <div class="flex items-center">
+            <UFormField label="启用节点" name="show">
+              <USwitch v-model="state.show" />
+            </UFormField>
+          </div>
         </div>
 
         <div class="flex justify-end gap-2 pt-2">

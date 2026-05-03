@@ -17,21 +17,6 @@ const links = [[{
     open.value = false
   }
 }, {
-  label: 'Inbox',
-  icon: 'i-lucide-inbox',
-  to: '/inbox',
-  badge: '4',
-  onSelect: () => {
-    open.value = false
-  }
-}, {
-  label: 'Customers',
-  icon: 'i-lucide-users',
-  to: '/customers',
-  onSelect: () => {
-    open.value = false
-  }
-}, {
   label: '套餐管理',
   icon: 'i-lucide-package',
   to: '/plans',
@@ -42,6 +27,13 @@ const links = [[{
   label: '节点管理',
   icon: 'i-lucide-server',
   to: '/nodes',
+  onSelect: () => {
+    open.value = false
+  }
+}, {
+  label: '用户管理',
+  icon: 'i-lucide-users-round',
+  to: '/users',
   onSelect: () => {
     open.value = false
   }

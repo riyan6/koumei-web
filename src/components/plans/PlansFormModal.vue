@@ -29,9 +29,6 @@ watch(open, (val) => {
 
 const schema = z.object({
   name: z.string().min(1, '套餐名称不能为空'),
-  transfer_enable: z.number().min(0),
-  speed_limit: z.number().nullable(),
-  device_limit: z.number().nullable(),
   show: z.boolean(),
   sort: z.number().int(),
   content: z.string(),
@@ -42,9 +39,6 @@ type Schema = z.output<typeof schema>
 
 const defaultState = (): Partial<Schema> => ({
   name: '',
-  transfer_enable: 0,
-  speed_limit: null,
-  device_limit: null,
   show: true,
   sort: 0,
   content: '',
@@ -56,14 +50,11 @@ const state = reactive<Partial<Schema>>(defaultState())
 function fillForm() {
   if (props.plan) {
     Object.assign(state, {
-      name: props.plan.Name,
-      transfer_enable: props.plan.TransferEnable,
-      speed_limit: props.plan.SpeedLimit,
-      device_limit: props.plan.DeviceLimit,
-      show: props.plan.Show,
-      sort: props.plan.Sort,
-      content: props.plan.Content,
-      enabled: props.plan.Enabled
+      name: props.plan.name,
+      show: props.plan.show,
+      sort: props.plan.sort,
+      content: props.plan.content,
+      enabled: props.plan.enabled
     })
   } else {
     Object.assign(state, defaultState())
@@ -83,7 +74,7 @@ watch(open, (val) => {
 async function onSubmit(event: FormSubmitEvent<Schema>) {
   try {
     if (props.plan) {
-      await updatePlan(props.plan.ID, event.data)
+      await updatePlan(props.plan.id, event.data)
       toast.add({ title: '更新成功', description: `套餐 "${event.data.name}" 已更新`, color: 'success' })
     } else {
       await createPlan(event.data)
@@ -94,13 +85,6 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
   } catch (e: unknown) {
     toast.add({ title: '操作失败', description: (e as Error).message, color: 'error' })
   }
-}
-
-function bytesToGB(bytes: number) {
-  return bytes === 0 ? 0 : Math.round(bytes / 1e9)
-}
-function gbToBytes(gb: number) {
-  return gb === 0 ? 0 : gb * 1e9
 }
 </script>
 
@@ -121,40 +105,6 @@ function gbToBytes(gb: number) {
         </UFormField>
 
         <div class="grid grid-cols-2 gap-4">
-          <UFormField label="总流量 (GB，0=不限)" name="transfer_enable">
-            <UInput
-              :model-value="bytesToGB(state.transfer_enable ?? 0)"
-              type="number"
-              min="0"
-              class="w-full"
-              @update:model-value="(v: number | string) => state.transfer_enable = gbToBytes(Number(v))"
-            />
-          </UFormField>
-
-          <UFormField label="速度限制 (Mbps)" name="speed_limit">
-            <UInput
-              :model-value="state.speed_limit ?? undefined"
-              type="number"
-              min="0"
-              class="w-full"
-              placeholder="不限"
-              @update:model-value="(v: number | string | undefined) => state.speed_limit = (v === '' || v === undefined) ? null : Number(v)"
-            />
-          </UFormField>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <UFormField label="设备数限制" name="device_limit">
-            <UInput
-              :model-value="state.device_limit ?? undefined"
-              type="number"
-              min="0"
-              class="w-full"
-              placeholder="不限"
-              @update:model-value="(v: number | string | undefined) => state.device_limit = (v === '' || v === undefined) ? null : Number(v)"
-            />
-          </UFormField>
-
           <UFormField label="排序" name="sort">
             <UInput v-model.number="state.sort" type="number" class="w-full" />
           </UFormField>

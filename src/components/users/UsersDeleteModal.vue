@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import type { Plan } from '../../types'
-import { deletePlan } from '../../api/plans'
+import type { AdminUser } from '../../types'
+import { deleteUser } from '../../api/users'
 
 const props = defineProps<{
-  plan: Plan
+  user: AdminUser
   modelValue?: boolean
 }>()
 
@@ -27,8 +27,8 @@ const toast = useToast()
 
 async function onConfirm() {
   try {
-    await deletePlan(props.plan.id)
-    toast.add({ title: '删除成功', description: `套餐 "${props.plan.name}" 已删除`, color: 'success' })
+    await deleteUser(props.user.id)
+    toast.add({ title: '删除成功', description: `用户 #${props.user.id} 已删除`, color: 'success' })
     open.value = false
     emit('deleted')
   } catch (e: unknown) {
@@ -40,8 +40,8 @@ async function onConfirm() {
 <template>
   <UModal
     v-model:open="open"
-    title="删除套餐"
-    :description="`确定要删除套餐「${plan.name}」吗？此操作不可撤销。`"
+    title="删除用户"
+    :description="`确定要删除用户 #${user.id} 吗？此操作不可撤销。`"
   >
     <slot />
 

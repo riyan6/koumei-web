@@ -34,20 +34,6 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
-    '/customers': RouteRecordInfo<
-      '/customers',
-      '/customers',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/inbox': RouteRecordInfo<
-      '/inbox',
-      '/inbox',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
     '/nodes': RouteRecordInfo<
       '/nodes',
       '/nodes',
@@ -100,6 +86,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/users': RouteRecordInfo<
+      '/users',
+      '/users',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
   }
 
   /**
@@ -116,18 +109,6 @@ declare module 'vue-router/auto-routes' {
     'src/pages/index.vue': {
       routes:
         | '/'
-      views:
-        | never
-    }
-    'src/pages/customers.vue': {
-      routes:
-        | '/customers'
-      views:
-        | never
-    }
-    'src/pages/inbox.vue': {
-      routes:
-        | '/inbox'
       views:
         | never
     }
@@ -174,6 +155,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/settings/security.vue': {
       routes:
         | '/settings/security'
+      views:
+        | never
+    }
+    'src/pages/users.vue': {
+      routes:
+        | '/users'
       views:
         | never
     }

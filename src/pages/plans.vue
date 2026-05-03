@@ -20,8 +20,10 @@ const searchQuery = ref('')
 
 const editingPlan = ref<Plan | null>(null)
 const deletingPlan = ref<Plan | null>(null)
+const nodesPlan = ref<Plan | null>(null)
 const showEditModal = ref(false)
 const showDeleteModal = ref(false)
+const showNodesModal = ref(false)
 
 async function loadPlans() {
   loading.value = true
@@ -40,15 +42,9 @@ const filteredPlans = computed(() => {
   if (!searchQuery.value) return plans.value
   const q = searchQuery.value.toLowerCase()
   return plans.value.filter(p =>
-    p.Name.toLowerCase().includes(q) || (p.Content ?? '').toLowerCase().includes(q)
+    p.name.toLowerCase().includes(q) || (p.content ?? '').toLowerCase().includes(q)
   )
 })
-
-function formatBytes(bytes: number) {
-  if (bytes === 0) return '不限'
-  const gb = bytes / 1e9
-  return gb >= 1 ? `${gb.toFixed(0)} GB` : `${(bytes / 1e6).toFixed(0)} MB`
-}
 
 function openEdit(plan: Plan) {
   editingPlan.value = plan
@@ -60,6 +56,11 @@ function openDelete(plan: Plan) {
   showDeleteModal.value = true
 }
 
+function openNodes(plan: Plan) {
+  nodesPlan.value = plan
+  showNodesModal.value = true
+}
+
 function getRowItems(row: Row<Plan>) {
   return [
     { type: 'label' as const, label: '操作' },
@@ -67,6 +68,11 @@ function getRowItems(row: Row<Plan>) {
       label: '编辑套餐',
       icon: 'i-lucide-pencil',
       onSelect() { openEdit(row.original) }
+    },
+    {
+      label: '分配节点',
+      icon: 'i-lucide-server',
+      onSelect() { openNodes(row.original) }
     },
     { type: 'separator' as const },
     {
@@ -83,56 +89,47 @@ const pagination = ref({ pageIndex: 0, pageSize: 10 })
 
 const columns: TableColumn<Plan>[] = [
   {
-    accessorKey: 'ID',
+    accessorKey: 'id',
     header: 'ID',
-    cell: ({ row }) => h('span', { class: 'text-muted text-sm' }, `#${row.original.ID}`)
+    cell: ({ row }) => h('span', { class: 'text-muted text-sm' }, `#${row.original.id}`)
   },
   {
-    accessorKey: 'Name',
+    accessorKey: 'name',
     header: '套餐名称',
     cell: ({ row }) =>
       h('div', undefined, [
-        h('p', { class: 'font-medium text-highlighted' }, row.original.Name),
-        row.original.Content
-          ? h('p', { class: 'text-xs text-muted truncate max-w-48' }, row.original.Content)
+        h('p', { class: 'font-medium text-highlighted' }, row.original.name),
+        row.original.content
+          ? h('p', { class: 'text-xs text-muted truncate max-w-48' }, row.original.content)
           : null
       ])
   },
   {
-    accessorKey: 'TransferEnable',
-    header: '流量',
-    cell: ({ row }) => h('span', undefined, formatBytes(row.original.TransferEnable))
-  },
-  {
-    accessorKey: 'SpeedLimit',
-    header: '速度限制',
+    accessorKey: 'node_ids',
+    header: '节点数',
     cell: ({ row }) =>
-      h('span', undefined, row.original.SpeedLimit ? `${row.original.SpeedLimit} Mbps` : '不限')
-  },
-  {
-    accessorKey: 'DeviceLimit',
-    header: '设备数',
-    cell: ({ row }) =>
-      h('span', undefined, row.original.DeviceLimit ? `${row.original.DeviceLimit}` : '不限')
-  },
-  {
-    accessorKey: 'Sort',
-    header: '排序'
-  },
-  {
-    accessorKey: 'Show',
-    header: '前端展示',
-    cell: ({ row }) =>
-      h(UBadge, { variant: 'subtle', color: row.original.Show ? 'success' : 'neutral' }, () =>
-        row.original.Show ? '展示' : '隐藏'
+      h(UBadge, { variant: 'subtle', color: 'primary' }, () =>
+        `${row.original.node_ids?.length ?? 0} 个`
       )
   },
   {
-    accessorKey: 'Enabled',
+    accessorKey: 'sort',
+    header: '排序'
+  },
+  {
+    accessorKey: 'show',
+    header: '前端展示',
+    cell: ({ row }) =>
+      h(UBadge, { variant: 'subtle', color: row.original.show ? 'success' : 'neutral' }, () =>
+        row.original.show ? '展示' : '隐藏'
+      )
+  },
+  {
+    accessorKey: 'enabled',
     header: '状态',
     cell: ({ row }) =>
-      h(UBadge, { variant: 'subtle', color: row.original.Enabled ? 'success' : 'error' }, () =>
-        row.original.Enabled ? '启用' : '禁用'
+      h(UBadge, { variant: 'subtle', color: row.original.enabled ? 'success' : 'error' }, () =>
+        row.original.enabled ? '启用' : '禁用'
       )
   },
   {
@@ -242,6 +239,17 @@ const columns: TableColumn<Plan>[] = [
   >
     <template #default><span /></template>
   </PlansFormModal>
+
+  <!-- Nodes modal -->
+  <PlansNodesModal
+    v-if="nodesPlan"
+    v-model="showNodesModal"
+    :plan="nodesPlan"
+    @saved="loadPlans(); nodesPlan = null"
+    @update:model-value="(v: boolean) => { if (!v) nodesPlan = null }"
+  >
+    <span />
+  </PlansNodesModal>
 
   <!-- Delete modal -->
   <PlansDeleteModal

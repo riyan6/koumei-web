@@ -21,8 +21,8 @@ const toast = useToast()
 
 async function onConfirm() {
   try {
-    await deleteNode(props.node.ID)
-    toast.add({ title: '删除成功', description: `节点 "${props.node.Name}" 已删除`, color: 'success' })
+    await deleteNode(props.node.id)
+    toast.add({ title: '删除成功', description: `节点 "${props.node.name}" 已删除`, color: 'success' })
     open.value = false
     emit('deleted')
   } catch (e: unknown) {
@@ -35,7 +35,7 @@ async function onConfirm() {
   <UModal
     v-model:open="open"
     title="删除节点"
-    :description="`确定要删除节点「${node.Name}」吗？此操作会同时删除其所有套餐关联，不可撤销。`"
+    :description="`确定要删除节点「${node.name}」吗？此操作会同时删除其所有套餐关联，不可撤销。`"
   >
     <slot />
     <template #body>

@@ -1,4 +1,4 @@
-import type { Plan, PlanFormData } from '../types'
+import type { Plan, PlanFormData, PlanNode } from '../types'
 
 const BASE_URL = '/api/admin/plans'
 
@@ -43,4 +43,16 @@ export async function updatePlan(id: number, data: PlanFormData): Promise<Plan> 
 
 export async function deletePlan(id: number): Promise<void> {
   await request(BASE_URL, { method: 'DELETE', body: JSON.stringify({ id }) })
+}
+
+export async function fetchPlanNodes(planId: number): Promise<PlanNode[]> {
+  const res = await request<PlanNode[]>(`${BASE_URL}/nodes?plan_id=${planId}`)
+  return res.data ?? []
+}
+
+export async function setPlanNodes(planId: number, nodes: { node_id: number; sort: number }[]): Promise<void> {
+  await request(`${BASE_URL}/nodes/set`, {
+    method: 'POST',
+    body: JSON.stringify({ plan_id: planId, nodes })
+  })
 }

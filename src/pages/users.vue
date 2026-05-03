@@ -3,8 +3,9 @@ import { useTemplateRef, h, ref, computed, resolveComponent } from 'vue'
 import { upperFirst } from 'scule'
 import type { TableColumn } from '@nuxt/ui'
 import { getPaginationRowModel, type Row } from '@tanstack/table-core'
-import type { Node } from '../types'
-import { fetchNodes } from '../api/nodes'
+import type { AdminUser, Plan } from '../types'
+import { fetchUsers } from '../api/users'
+import { fetchPlans } from '../api/plans'
 
 const UButton = resolveComponent('UButton')
 const UBadge = resolveComponent('UBadge')
@@ -13,20 +14,25 @@ const UDropdownMenu = resolveComponent('UDropdownMenu')
 const toast = useToast()
 const table = useTemplateRef('table')
 
-const nodes = ref<Node[]>([])
+const users = ref<AdminUser[]>([])
+const plans = ref<Plan[]>([])
 const loading = ref(false)
 const showDisabled = ref(false)
 const searchQuery = ref('')
+const filterPlanId = ref<number | null>(null)
 
-const editingNode = ref<Node | null>(null)
-const deletingNode = ref<Node | null>(null)
+const editingUser = ref<AdminUser | null>(null)
+const deletingUser = ref<AdminUser | null>(null)
 const showEditModal = ref(false)
 const showDeleteModal = ref(false)
 
-const loadNodes = async () => {
+const loadUsers = async () => {
   loading.value = true
   try {
-    nodes.value = await fetchNodes(showDisabled.value)
+    const params: { plan_id?: number; status?: number } = {}
+    if (filterPlanId.value !== null) params.plan_id = filterPlanId.value
+    if (!showDisabled.value) params.status = 1
+    users.value = await fetchUsers(params)
   } catch (e: unknown) {
     toast.add({ title: '加载失败', description: (e as Error).message, color: 'error' })
   } finally {
@@ -34,82 +40,96 @@ const loadNodes = async () => {
   }
 }
 
-loadNodes()
+const loadPlans = async () => {
+  try {
+    plans.value = await fetchPlans(true)
+  } catch {
+    // ignore
+  }
+}
 
-const filteredNodes = computed(() => {
-  if (!searchQuery.value) return nodes.value
+loadPlans()
+loadUsers()
+
+const planMap = computed(() => {
+  const map = new Map<number, string>()
+  plans.value.forEach(p => map.set(p.id, p.name))
+  return map
+})
+
+const filteredUsers = computed(() => {
+  if (!searchQuery.value) return users.value
   const q = searchQuery.value.toLowerCase()
-  return nodes.value.filter(n =>
-    n.name.toLowerCase().includes(q) || (n.remarks ?? '').toLowerCase().includes(q)
+  return users.value.filter(u =>
+    (u.email ?? '').toLowerCase().includes(q)
+    || u.uuid.toLowerCase().includes(q)
+    || (u.remarks ?? '').toLowerCase().includes(q)
   )
 })
 
-const openEdit = (node: Node) => {
-  editingNode.value = node
+const openEdit = (user: AdminUser) => {
+  editingUser.value = user
   showEditModal.value = true
 }
 
-const openDelete = (node: Node) => {
-  deletingNode.value = node
+const openDelete = (user: AdminUser) => {
+  deletingUser.value = user
   showDeleteModal.value = true
 }
 
-const getRowItems = (row: Row<Node>) => {
+const getRowItems = (row: Row<AdminUser>) => {
   return [
     { type: 'label' as const, label: '操作' },
-    { label: '编辑节点', icon: 'i-lucide-pencil', onSelect() { openEdit(row.original) } },
+    { label: '编辑用户', icon: 'i-lucide-pencil', onSelect() { openEdit(row.original) } },
     { type: 'separator' as const },
-    { label: '删除节点', icon: 'i-lucide-trash', color: 'error' as const, onSelect() { openDelete(row.original) } }
+    { label: '删除用户', icon: 'i-lucide-trash', color: 'error' as const, onSelect() { openDelete(row.original) } }
   ]
 }
 
 const columnVisibility = ref()
 const pagination = ref({ pageIndex: 0, pageSize: 10 })
 
-const columns: TableColumn<Node>[] = [
+const columns: TableColumn<AdminUser>[] = [
   {
     accessorKey: 'id',
     header: 'ID',
     cell: ({ row }) => h('span', { class: 'text-muted text-sm' }, `#${row.original.id}`)
   },
   {
-    accessorKey: 'name',
-    header: '节点名称',
+    accessorKey: 'email',
+    header: '邮箱',
     cell: ({ row }) =>
       h('div', undefined, [
-        h('p', { class: 'font-medium text-highlighted' }, row.original.name),
-        row.original.remarks
-          ? h('p', { class: 'text-xs text-muted truncate max-w-48' }, row.original.remarks)
-          : null
+        h('p', { class: 'font-medium text-highlighted' }, row.original.email || '-'),
+        h('p', { class: 'text-xs text-muted truncate max-w-48' }, row.original.uuid)
       ])
   },
   {
-    accessorKey: 'type',
-    header: '类型',
+    accessorKey: 'plan_id',
+    header: '套餐',
     cell: ({ row }) =>
-      h(UBadge, { variant: 'subtle', color: 'primary' }, () =>
-        row.original.type.toUpperCase()
-      )
+      h('span', undefined, row.original.plan_id ? (planMap.value.get(row.original.plan_id) || `#${row.original.plan_id}`) : '-')
   },
   {
-    accessorKey: 'host',
-    header: '主机'
-  },
-  {
-    accessorKey: 'port',
-    header: '端口'
-  },
-  {
-    accessorKey: 'sort',
-    header: '排序'
-  },
-  {
-    accessorKey: 'show',
+    accessorKey: 'status',
     header: '状态',
     cell: ({ row }) =>
-      h(UBadge, { variant: 'subtle', color: row.original.show ? 'success' : 'error' }, () =>
-        row.original.show ? '启用' : '禁用'
+      h(UBadge, { variant: 'subtle', color: row.original.status === 1 ? 'success' : 'error' }, () =>
+        row.original.status === 1 ? '启用' : '禁用'
       )
+  },
+  {
+    accessorKey: 'is_admin',
+    header: '角色',
+    cell: ({ row }) =>
+      h(UBadge, { variant: 'subtle', color: row.original.is_admin === 1 ? 'primary' : 'neutral' }, () =>
+        row.original.is_admin === 1 ? '管理员' : '用户'
+      )
+  },
+  {
+    accessorKey: 'remarks',
+    header: '备注',
+    cell: ({ row }) => h('span', { class: 'text-sm text-muted truncate max-w-32 block' }, row.original.remarks || '-')
   },
   {
     id: 'actions',
@@ -121,17 +141,31 @@ const columns: TableColumn<Node>[] = [
       )
   }
 ]
+
+const planFilterOptions = computed(() => [
+  { label: '全部套餐', value: null },
+  ...plans.value.map(p => ({ label: p.name, value: p.id }))
+])
+
+function onPlanFilterChange(val: number | null) {
+  filterPlanId.value = val
+  loadUsers()
+}
+
+function onShowDisabledChange() {
+  loadUsers()
+}
 </script>
 
 <template>
-  <UDashboardPanel id="nodes">
+  <UDashboardPanel id="users">
     <template #header>
-      <UDashboardNavbar title="节点管理">
+      <UDashboardNavbar title="用户管理">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <NodesFormModal @saved="loadNodes" />
+          <UsersFormModal @saved="loadUsers" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -142,11 +176,18 @@ const columns: TableColumn<Node>[] = [
           v-model="searchQuery"
           class="max-w-sm"
           icon="i-lucide-search"
-          placeholder="搜索节点名称..."
+          placeholder="搜索邮箱、UUID 或备注..."
         />
 
         <div class="flex flex-wrap items-center gap-1.5">
-          <UCheckbox v-model="showDisabled" label="显示禁用" @update:model-value="loadNodes" />
+          <USelect
+            :model-value="filterPlanId"
+            :items="planFilterOptions"
+            class="w-40"
+            @update:model-value="onPlanFilterChange"
+          />
+
+          <UCheckbox v-model="showDisabled" label="显示禁用" @update:model-value="onShowDisabledChange" />
 
           <UDropdownMenu
             :items="
@@ -176,7 +217,7 @@ const columns: TableColumn<Node>[] = [
         v-model:pagination="pagination"
         :pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
         class="shrink-0"
-        :data="filteredNodes"
+        :data="filteredUsers"
         :columns="columns"
         :loading="loading"
         :ui="{
@@ -193,30 +234,30 @@ const columns: TableColumn<Node>[] = [
         <UPagination
           :default-page="(table?.tableApi?.getState().pagination.pageIndex || 0) + 1"
           :items-per-page="table?.tableApi?.getState().pagination.pageSize"
-          :total="filteredNodes.length"
+          :total="filteredUsers.length"
           @update:page="(p: number) => table?.tableApi?.setPageIndex(p - 1)"
         />
       </div>
     </template>
   </UDashboardPanel>
 
-  <NodesFormModal
-    v-if="editingNode"
+  <UsersFormModal
+    v-if="editingUser"
     v-model="showEditModal"
-    :node="editingNode"
-    @saved="loadNodes(); editingNode = null"
-    @update:model-value="(v: boolean) => { if (!v) editingNode = null }"
+    :user="editingUser"
+    @saved="loadUsers(); editingUser = null"
+    @update:model-value="(v: boolean) => { if (!v) editingUser = null }"
   >
     <template #default><span /></template>
-  </NodesFormModal>
+  </UsersFormModal>
 
-  <NodesDeleteModal
-    v-if="deletingNode"
+  <UsersDeleteModal
+    v-if="deletingUser"
     v-model="showDeleteModal"
-    :node="deletingNode"
-    @deleted="loadNodes(); deletingNode = null"
-    @update:model-value="(v: boolean) => { if (!v) deletingNode = null }"
+    :user="deletingUser"
+    @deleted="loadUsers(); deletingUser = null"
+    @update:model-value="(v: boolean) => { if (!v) deletingUser = null }"
   >
     <span />
-  </NodesDeleteModal>
+  </UsersDeleteModal>
 </template>
