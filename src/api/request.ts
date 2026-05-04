@@ -48,7 +48,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   if (!res.ok || body.code !== 0) {
-    throw new Error(body.error || body.msg || res.statusText)
+    throw new Error(body.error || body.msg || `请求失败（${res.status}）`)
   }
 
   return body

@@ -158,10 +158,11 @@ const adminOptions = [
           <!-- 新增时显示密码输入框，编辑时隐藏 -->
           <UFormField v-if="!isEdit" label="密码" name="password" required>
             <UInput
-              v-model="state.password"
+              :model-value="state.password ?? ''"
               type="password"
               class="w-full"
               placeholder="请输入密码"
+              @update:model-value="(v: string) => state.password = v"
             />
           </UFormField>
         </div>
