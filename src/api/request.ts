@@ -29,6 +29,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   const res = await fetch(buildServerUrl(path), {
     ...restOptions,
+    // JWT 通过 Authorization 头传递，跨域请求不携带 Cookie，避免和 CF 的 * CORS 头冲突。
+    credentials: 'omit',
     headers: requestHeaders
   })
 
