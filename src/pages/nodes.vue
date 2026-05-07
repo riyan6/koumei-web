@@ -4,7 +4,7 @@ import { upperFirst } from 'scule'
 import type { TableColumn } from '@nuxt/ui'
 import { getPaginationRowModel, type Row } from '@tanstack/table-core'
 import type { Node } from '../types'
-import { fetchNodes } from '../api/nodes'
+import { duplicateNode, fetchNodes } from '../api/nodes'
 
 const UButton = resolveComponent('UButton')
 const UBadge = resolveComponent('UBadge')
@@ -61,10 +61,26 @@ const openDeploy = (node: Node) => {
   showDeploySlideover.value = true
 }
 
+// handleDuplicate 复制当前节点并刷新列表。
+const handleDuplicate = async (node: Node) => {
+  try {
+    const clonedNode = await duplicateNode(node.id)
+    toast.add({
+      title: '复制成功',
+      description: `已创建节点 "${clonedNode.name}"`,
+      color: 'success'
+    })
+    await loadNodes()
+  } catch (e: unknown) {
+    toast.add({ title: '复制失败', description: (e as Error).message, color: 'error' })
+  }
+}
+
 const getRowItems = (row: Row<Node>) => {
   return [
     { type: 'label' as const, label: '操作' },
     { label: '编辑节点', icon: 'i-lucide-pencil', onSelect() { openEdit(row.original) } },
+    { label: '复制节点', icon: 'i-lucide-copy', onSelect() { handleDuplicate(row.original) } },
     { label: '部署到 sing-box', icon: 'i-lucide-terminal-square', onSelect() { openDeploy(row.original) } },
     { type: 'separator' as const },
     { label: '删除节点', icon: 'i-lucide-trash', color: 'error' as const, onSelect() { openDelete(row.original) } }

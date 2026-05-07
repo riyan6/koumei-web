@@ -14,6 +14,19 @@ export interface RequestOptions extends RequestInit {
   skipAuth?: boolean
 }
 
+// redirectToLogin 授权失效后清理登录态，并跳转到登录页。
+function redirectToLogin() {
+  clearAuthToken()
+
+  if (window.location.pathname === '/login') {
+    return
+  }
+
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`
+  window.location.replace(loginUrl)
+}
+
 // request 统一请求封装，自动附带 token，并在 401/403 时清理登录态
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
   const { skipAuth = false, headers, ...restOptions } = options
@@ -44,7 +57,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   if (res.status === 401 || res.status === 403) {
-    clearAuthToken()
+    redirectToLogin()
   }
 
   if (!res.ok || body.code !== 0) {

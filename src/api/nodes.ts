@@ -21,3 +21,9 @@ export async function updateNode(id: number, data: NodeFormData): Promise<Node> 
 export async function deleteNode(id: number): Promise<void> {
   await request(BASE_URL, { method: 'DELETE', body: JSON.stringify({ id }) })
 }
+
+// duplicateNode 复制指定节点，后端会自动将新节点名称追加 _clone。
+export async function duplicateNode(id: number): Promise<Node> {
+  const res = await request<Node>(`${BASE_URL}/duplicate`, { method: 'POST', body: JSON.stringify({ id }) })
+  return res.data!
+}

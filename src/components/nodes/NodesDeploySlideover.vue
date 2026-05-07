@@ -36,6 +36,12 @@ const nodeSettings = computed<Record<string, any>>(() => props.node.protocol_set
 // realitySettings 解析 Reality 配置
 const realitySettings = computed<Record<string, any>>(() => nodeSettings.value.reality_settings || {})
 
+// isShadowsocks 判断当前节点是否为 Shadowsocks。
+const isShadowsocks = computed(() => ['shadowsocks', 'ss'].includes(props.node.type.toLowerCase()))
+
+// shadowsocksCipher 获取 Shadowsocks 加密算法。
+const shadowsocksCipher = computed(() => String(nodeSettings.value.cipher || '未配置'))
+
 // inboundTag 生成 sing-box inbound tag
 const inboundTag = computed(() => props.node.uuid || `node-${props.node.id}`)
 
@@ -138,9 +144,7 @@ async function copyScript() {
 // buildSingBoxConfig 根据节点生成 sing-box 配置
 function buildSingBoxConfig(node: Node): string {
   const settings = (node.protocol_settings || {}) as Record<string, any>
-  const reality = (settings.reality_settings || {}) as Record<string, any>
-  const server = reality.server_name || 'www.apple.com'
-  const shortId = reality.short_id ? [String(reality.short_id)] : []
+  const inbound = buildSingBoxInbound(node, settings)
 
   const config = {
     log: {
@@ -161,33 +165,7 @@ function buildSingBoxConfig(node: Node): string {
       server_port: 123,
       interval: '30m'
     },
-    inbounds: [
-      {
-        type: 'vless',
-        tag: inboundTag.value,
-        listen: '::',
-        listen_port: node.port,
-        users: [
-          {
-            uuid: node.uuid || '',
-            flow: settings.flow || 'xtls-rprx-vision'
-          }
-        ],
-        tls: {
-          enabled: true,
-          server_name: server,
-          reality: {
-            enabled: true,
-            handshake: {
-              server,
-              server_port: Number(reality.server_port || 443)
-            },
-            private_key: String(reality.private_key || ''),
-            short_id: shortId
-          }
-        }
-      }
-    ],
+    inbounds: [inbound],
     outbounds: [
       {
         type: 'direct',
@@ -233,6 +211,50 @@ function buildSingBoxConfig(node: Node): string {
 
   return JSON.stringify(config, null, 2)
 }
+
+// buildSingBoxInbound 根据协议类型生成 sing-box 入站配置。
+function buildSingBoxInbound(node: Node, settings: Record<string, any>) {
+  if (['shadowsocks', 'ss'].includes(node.type.toLowerCase())) {
+    return {
+      type: 'shadowsocks',
+      tag: inboundTag.value,
+      listen: '::',
+      listen_port: node.port,
+      method: String(settings.cipher || ''),
+      password: String(settings.password || '')
+    }
+  }
+
+  const reality = (settings.reality_settings || {}) as Record<string, any>
+  const server = reality.server_name || 'www.apple.com'
+  const shortId = reality.short_id ? [String(reality.short_id)] : []
+
+  return {
+    type: 'vless',
+    tag: inboundTag.value,
+    listen: '::',
+    listen_port: node.port,
+    users: [
+      {
+        uuid: node.uuid || '',
+        flow: settings.flow || 'xtls-rprx-vision'
+      }
+    ],
+    tls: {
+      enabled: true,
+      server_name: server,
+      reality: {
+        enabled: true,
+        handshake: {
+          server,
+          server_port: Number(reality.server_port || 443)
+        },
+        private_key: String(reality.private_key || ''),
+        short_id: shortId
+      }
+    }
+  }
+}
 </script>
 
 <template>
@@ -254,13 +276,15 @@ function buildSingBoxConfig(node: Node): string {
             <p class="mt-1 text-sm font-medium text-highlighted">{{ node.host || '::' }}:{{ node.port }}</p>
           </div>
           <div class="rounded-lg border border-default p-3">
-            <p class="text-xs text-muted">节点 UUID</p>
-            <p class="mt-1 text-sm font-medium text-highlighted break-all">{{ node.uuid || '未配置' }}</p>
+            <p class="text-xs text-muted">{{ isShadowsocks ? '加密算法' : '节点 UUID' }}</p>
+            <p class="mt-1 text-sm font-medium text-highlighted break-all">
+              {{ isShadowsocks ? shadowsocksCipher : (node.uuid || '未配置') }}
+            </p>
           </div>
           <div class="rounded-lg border border-default p-3">
-            <p class="text-xs text-muted">Reality 信息</p>
+            <p class="text-xs text-muted">{{ isShadowsocks ? '协议密码' : 'Reality 信息' }}</p>
             <p class="mt-1 text-sm font-medium text-highlighted break-all">
-              {{ serverName }} / {{ realityShortId || '未配置 short_id' }}
+              {{ isShadowsocks ? '已写入配置文件' : `${serverName} / ${realityShortId || '未配置 short_id'}` }}
             </p>
           </div>
         </div>

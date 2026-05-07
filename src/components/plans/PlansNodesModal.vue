@@ -56,13 +56,19 @@ watch(open, (val) => {
 })
 
 const nodeList = computed(() =>
-  allNodes.value.map(node => ({
+  [
+    ...selectedNodeIds.value
+      .map(nodeId => allNodes.value.find(node => node.id === nodeId))
+      .filter((node): node is Node => Boolean(node)),
+    ...allNodes.value.filter(node => !selectedNodeIds.value.includes(node.id))
+  ].map(node => ({
     id: node.id,
     name: node.name,
     type: node.type,
     host: node.host,
     port: node.port,
-    selected: selectedNodeIds.value.includes(node.id)
+    selected: selectedNodeIds.value.includes(node.id),
+    selectedIndex: selectedNodeIds.value.indexOf(node.id)
   }))
 )
 
@@ -73,6 +79,20 @@ function toggleNode(nodeId: number) {
   } else {
     selectedNodeIds.value.splice(idx, 1)
   }
+}
+
+// moveSelectedNode 调整已选节点在套餐内的订阅输出顺序。
+function moveSelectedNode(nodeId: number, direction: -1 | 1) {
+  const currentIndex = selectedNodeIds.value.indexOf(nodeId)
+  const nextIndex = currentIndex + direction
+  if (currentIndex < 0 || nextIndex < 0 || nextIndex >= selectedNodeIds.value.length) {
+    return
+  }
+
+  const nextIds = [...selectedNodeIds.value]
+  const [movedNodeId] = nextIds.splice(currentIndex, 1)
+  nextIds.splice(nextIndex, 0, movedNodeId)
+  selectedNodeIds.value = nextIds
 }
 
 async function onSave() {
@@ -135,6 +155,24 @@ async function onSave() {
             <UBadge variant="subtle" :color="node.selected ? 'success' : 'neutral'">
               {{ node.selected ? '已选' : '未选' }}
             </UBadge>
+            <div v-if="node.selected" class="flex items-center gap-1" @click.stop>
+              <UButton
+                icon="i-lucide-arrow-up"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                :disabled="node.selectedIndex === 0"
+                @click="moveSelectedNode(node.id, -1)"
+              />
+              <UButton
+                icon="i-lucide-arrow-down"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                :disabled="node.selectedIndex === selectedNodeIds.length - 1"
+                @click="moveSelectedNode(node.id, 1)"
+              />
+            </div>
           </div>
 
           <div v-if="nodeList.length === 0" class="p-4 text-center text-muted">

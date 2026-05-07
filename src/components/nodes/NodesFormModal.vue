@@ -28,18 +28,53 @@ const schema = z.object({
   name: z.string().min(1, '节点名称不能为空'),
   host: z.string().min(1, '主机不能为空'),
   port: z.number().int().min(1).max(65535, '端口必须在 1-65535 之间'),
-  uuid: z.string().min(1, 'UUID 不能为空'),
+  uuid: z.string().optional(),
   sort: z.number().int().min(0),
   remarks: z.string().nullable().optional(),
   show: z.boolean().default(true),
   // Reality settings
-  reality_short_id: z.string().min(1, '请填写 Short ID'),
-  reality_private_key: z.string().min(1, '请填写私钥'),
-  reality_public_key: z.string().min(1, '请填写公钥'),
-  reality_server_name: z.string().min(1, '请填写 Server Name'),
+  reality_short_id: z.string().optional(),
+  reality_private_key: z.string().optional(),
+  reality_public_key: z.string().optional(),
+  reality_server_name: z.string().optional(),
   reality_server_port: z.number().int().min(1).max(65535),
   reality_allow_insecure: z.boolean().default(false),
-  utls_fingerprint: z.string().default('chrome')
+  utls_fingerprint: z.string().default('chrome'),
+  // Shadowsocks settings
+  ss_cipher: z.string().default('aes-256-gcm'),
+  ss_password: z.string().optional()
+}).superRefine((data, ctx) => {
+  // 按协议类型执行条件校验，避免 SS 节点被 VLESS 字段阻塞。
+  if (data.type === 'vless') {
+    if (!data.uuid?.trim()) {
+      ctx.addIssue({ code: 'custom', path: ['uuid'], message: 'UUID 不能为空' })
+    }
+    if (!data.reality_short_id?.trim()) {
+      ctx.addIssue({ code: 'custom', path: ['reality_short_id'], message: '请填写 Short ID' })
+    }
+    if (!data.reality_private_key?.trim()) {
+      ctx.addIssue({ code: 'custom', path: ['reality_private_key'], message: '请填写私钥' })
+    }
+    if (!data.reality_public_key?.trim()) {
+      ctx.addIssue({ code: 'custom', path: ['reality_public_key'], message: '请填写公钥' })
+    }
+    if (!data.reality_server_name?.trim()) {
+      ctx.addIssue({ code: 'custom', path: ['reality_server_name'], message: '请填写 Server Name' })
+    }
+  }
+
+  if (data.type === 'shadowsocks') {
+    const password = data.ss_password?.trim() || ''
+    if (!password) {
+      ctx.addIssue({ code: 'custom', path: ['ss_password'], message: '请填写 Shadowsocks 密码' })
+    }
+    if (data.ss_cipher === '2022-blake3-aes-128-gcm' && !isBase64ByteLength(password, 16)) {
+      ctx.addIssue({ code: 'custom', path: ['ss_password'], message: 'SS2022 AES-128 密码必须是 16 字节 base64 密钥' })
+    }
+    if (data.ss_cipher === '2022-blake3-aes-256-gcm' && !isBase64ByteLength(password, 32)) {
+      ctx.addIssue({ code: 'custom', path: ['ss_password'], message: 'SS2022 AES-256 密码必须是 32 字节 base64 密钥' })
+    }
+  }
 })
 
 type Schema = z.output<typeof schema>
@@ -60,7 +95,9 @@ const defaultState = (): Partial<Schema> => ({
   reality_server_name: '',
   reality_server_port: 443,
   reality_allow_insecure: false,
-  utls_fingerprint: 'chrome'
+  utls_fingerprint: 'chrome',
+  ss_cipher: 'aes-256-gcm',
+  ss_password: ''
 })
 
 const state = reactive<Partial<Schema>>(defaultState())
@@ -80,7 +117,7 @@ const fillForm = () => {
       show: n.show
     })
 
-    // 从 protocol_settings 中提取 Reality 相关配置
+    // 从 protocol_settings 中提取对应协议配置
     if (n.protocol_settings) {
       const settings = n.protocol_settings as Record<string, any>
       const realitySettings = settings.reality_settings || {}
@@ -93,7 +130,9 @@ const fillForm = () => {
         reality_server_name: realitySettings.server_name || '',
         reality_server_port: realitySettings.server_port || 443,
         reality_allow_insecure: realitySettings.allow_insecure || false,
-        utls_fingerprint: utlsSettings.fingerprint || 'chrome'
+        utls_fingerprint: utlsSettings.fingerprint || 'chrome',
+        ss_cipher: settings.cipher || 'aes-256-gcm',
+        ss_password: settings.password || ''
       })
     }
   } else {
@@ -107,12 +146,12 @@ watch(open, (val) => { if (val) fillForm() })
 // 提交表单（组装 payload 并调用新增/更新接口）
 const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   const payload = {
-    type: 'vless',
+    type: event.data.type,
     name: event.data.name,
     host: event.data.host,
     port: event.data.port,
-    uuid: event.data.uuid,
-    protocol_settings: {
+    uuid: event.data.type === 'vless' ? event.data.uuid : null,
+    protocol_settings: event.data.type === 'vless' ? {
       tls: 2, // REALITY
       flow: 'xtls-rprx-vision',
       utls: {
@@ -144,6 +183,9 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         server_port: event.data.reality_server_port,
         allow_insecure: event.data.reality_allow_insecure
       }
+    } : {
+      cipher: event.data.ss_cipher,
+      password: event.data.ss_password
     },
     show: event.data.show,
     sort: event.data.sort,
@@ -191,6 +233,50 @@ const generateNodeUUID = () => {
   state.uuid = crypto.randomUUID()
 }
 
+// randomBase64 生成指定字节长度的标准 base64 字符串。
+const randomBase64 = (byteLength: number) => {
+  const bytes = new Uint8Array(byteLength)
+  crypto.getRandomValues(bytes)
+  return btoa(String.fromCharCode(...bytes))
+}
+
+// isBase64ByteLength 校验 base64 解码后的字节长度。
+function isBase64ByteLength(value: string, byteLength: number) {
+  try {
+    return Uint8Array.from(atob(value), c => c.charCodeAt(0)).length === byteLength
+  } catch {
+    return false
+  }
+}
+
+// generateShadowsocksPassword 按当前加密算法生成合规密码。
+const generateShadowsocksPassword = () => {
+  if (state.ss_cipher === '2022-blake3-aes-128-gcm') {
+    state.ss_password = randomBase64(16)
+    return
+  }
+  if (state.ss_cipher === '2022-blake3-aes-256-gcm') {
+    state.ss_password = randomBase64(32)
+    return
+  }
+  state.ss_password = randomBase64(24)
+}
+
+// nodeTypeOptions 节点协议选项。
+const nodeTypeOptions = [
+  { label: 'VLESS Reality', value: 'vless' },
+  { label: 'Shadowsocks', value: 'shadowsocks' }
+]
+
+// ssCipherOptions Shadowsocks 加密算法选项。
+const ssCipherOptions = [
+  { label: 'AES-256-GCM', value: 'aes-256-gcm' },
+  { label: 'AES-128-GCM', value: 'aes-128-gcm' },
+  { label: 'ChaCha20-IETF-Poly1305', value: 'chacha20-ietf-poly1305' },
+  { label: '2022 BLAKE3 AES-128-GCM', value: '2022-blake3-aes-128-gcm' },
+  { label: '2022 BLAKE3 AES-256-GCM', value: '2022-blake3-aes-256-gcm' }
+]
+
 const utlsOptions = [
   { label: 'Chrome', value: 'chrome' },
   { label: 'Firefox', value: 'firefox' }
@@ -201,7 +287,7 @@ const utlsOptions = [
   <UModal
     v-model:open="open"
     :title="node ? '编辑节点' : '新增节点'"
-    :description="node ? '修改节点信息' : '创建一个新的节点 (VLESS-Reality-Vision)'"
+    :description="node ? '修改节点信息' : '创建 VLESS Reality 或 Shadowsocks 节点'"
     :ui="{ content: 'max-w-2xl' }"
   >
     <slot>
@@ -216,12 +302,18 @@ const utlsOptions = [
           <UFormField label="节点名称" name="name" required>
             <UInput v-model="state.name" class="w-full" placeholder="例如：VLESS-Reality节点" />
           </UFormField>
+          <UFormField label="协议类型" name="type" required>
+            <USelect v-model="state.type" :items="nodeTypeOptions" class="w-full" />
+          </UFormField>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
           <UFormField label="排序" name="sort">
             <UInput v-model.number="state.sort" type="number" class="w-full" />
           </UFormField>
         </div>
 
-        <UFormField label="节点 UUID" name="uuid" required>
+        <UFormField v-if="state.type === 'vless'" label="节点 UUID" name="uuid" required>
           <div class="flex gap-2">
             <UInput v-model="state.uuid" class="w-full" placeholder="点击右侧按钮自动生成 UUID" />
             <UButton label="生成" color="neutral" variant="subtle" icon="i-lucide-refresh-cw" @click="generateNodeUUID" />
@@ -243,7 +335,7 @@ const utlsOptions = [
         </div>
 
         <!-- Reality 配置 -->
-        <div class="rounded-lg border border-default p-4 space-y-4">
+        <div v-if="state.type === 'vless'" class="rounded-lg border border-default p-4 space-y-4">
           <p class="text-sm font-medium text-highlighted">Reality 配置</p>
 
           <div class="grid grid-cols-2 gap-4">
@@ -286,6 +378,22 @@ const utlsOptions = [
               <USwitch v-model="state.reality_allow_insecure" />
             </UFormField>
           </div>
+        </div>
+
+        <!-- Shadowsocks 配置 -->
+        <div v-if="state.type === 'shadowsocks'" class="rounded-lg border border-default p-4 space-y-4">
+          <p class="text-sm font-medium text-highlighted">Shadowsocks 配置</p>
+
+          <UFormField label="加密算法" name="ss_cipher" required>
+            <USelect v-model="state.ss_cipher" :items="ssCipherOptions" class="w-full" />
+          </UFormField>
+
+          <UFormField label="密码" name="ss_password" required>
+            <div class="flex gap-2">
+              <UInput v-model="state.ss_password" class="w-full" placeholder="点击右侧按钮自动生成密码" />
+              <UButton label="生成" color="neutral" variant="subtle" icon="i-lucide-refresh-cw" @click="generateShadowsocksPassword" />
+            </div>
+          </UFormField>
         </div>
 
         <!-- 备注和状态 -->
