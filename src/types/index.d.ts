@@ -102,6 +102,8 @@ export interface Node {
   show: boolean
   sort: number
   remarks: string | null
+  server_host: string | null
+  server_port: number
   created_at: string
   updated_at: string
 }
@@ -116,6 +118,8 @@ export interface NodeFormData {
   show?: boolean
   sort: number
   remarks?: string | null
+  server_host: string
+  server_port: number
 }
 
 export interface AdminUser {

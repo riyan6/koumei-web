@@ -214,12 +214,14 @@ function buildSingBoxConfig(node: Node): string {
 
 // buildSingBoxInbound 根据协议类型生成 sing-box 入站配置。
 function buildSingBoxInbound(node: Node, settings: Record<string, any>) {
+  const listenPort = node.server_port || node.port
+
   if (['shadowsocks', 'ss'].includes(node.type.toLowerCase())) {
     return {
       type: 'shadowsocks',
       tag: inboundTag.value,
       listen: '::',
-      listen_port: node.port,
+      listen_port: listenPort,
       method: String(settings.cipher || ''),
       password: String(settings.password || '')
     }
@@ -233,7 +235,7 @@ function buildSingBoxInbound(node: Node, settings: Record<string, any>) {
     type: 'vless',
     tag: inboundTag.value,
     listen: '::',
-    listen_port: node.port,
+    listen_port: listenPort,
     users: [
       {
         uuid: node.uuid || '',
@@ -273,7 +275,7 @@ function buildSingBoxInbound(node: Node, settings: Record<string, any>) {
           </div>
           <div class="rounded-lg border border-default p-3">
             <p class="text-xs text-muted">监听地址</p>
-            <p class="mt-1 text-sm font-medium text-highlighted">{{ node.host || '::' }}:{{ node.port }}</p>
+            <p class="mt-1 text-sm font-medium text-highlighted">{{ node.server_host || node.host || '::' }}:{{ node.server_port || node.port }}</p>
           </div>
           <div class="rounded-lg border border-default p-3">
             <p class="text-xs text-muted">{{ isShadowsocks ? '加密算法' : '节点 UUID' }}</p>

@@ -124,6 +124,14 @@ const columns: TableColumn<Node>[] = [
     header: '端口'
   },
   {
+    accessorKey: 'server_host',
+    header: '服务器主机'
+  },
+  {
+    accessorKey: 'server_port',
+    header: '服务器端口'
+  },
+  {
     accessorKey: 'sort',
     header: '排序'
   },

@@ -28,6 +28,8 @@ const schema = z.object({
   name: z.string().min(1, '节点名称不能为空'),
   host: z.string().min(1, '主机不能为空'),
   port: z.number().int().min(1).max(65535, '端口必须在 1-65535 之间'),
+  server_host: z.string().min(1, '服务器主机不能为空'),
+  server_port: z.number().int().min(1).max(65535, '端口必须在 1-65535 之间'),
   uuid: z.string().optional(),
   sort: z.number().int().min(0),
   remarks: z.string().nullable().optional(),
@@ -85,6 +87,8 @@ const defaultState = (): Partial<Schema> => ({
   name: '',
   host: '',
   port: 443,
+  server_host: '',
+  server_port: 443,
   uuid: '',
   sort: 0,
   remarks: null,
@@ -111,6 +115,8 @@ const fillForm = () => {
       name: n.name,
       host: n.host || '',
       port: n.port || 443,
+      server_host: n.server_host || '',
+      server_port: n.server_port || 443,
       uuid: n.uuid || '',
       sort: n.sort,
       remarks: n.remarks || null,
@@ -150,6 +156,8 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     name: event.data.name,
     host: event.data.host,
     port: event.data.port,
+    server_host: event.data.server_host,
+    server_port: event.data.server_port,
     uuid: event.data.type === 'vless' ? event.data.uuid : null,
     protocol_settings: event.data.type === 'vless' ? {
       tls: 2, // REALITY
@@ -324,12 +332,37 @@ const utlsOptions = [
         <div class="rounded-lg border border-default p-4 space-y-4">
           <p class="text-sm font-medium text-highlighted">网络配置</p>
 
-          <div class="grid grid-cols-2 gap-4">
-            <UFormField label="主机 IP" name="host" required>
+          <div class="flex items-end gap-2">
+            <UFormField label="主机 IP" name="host" required class="flex-1">
               <UInput v-model="state.host" class="w-full" placeholder="127.0.0.1" />
             </UFormField>
-            <UFormField label="端口" name="port" required>
+            <UButton
+              icon="i-lucide-arrow-right"
+              variant="soft"
+              color="neutral"
+              size="sm"
+              title="复制到服务器主机"
+              @click="state.server_host = state.host || ''"
+            />
+            <UFormField label="服务器主机" name="server_host" required class="flex-1">
+              <UInput v-model="state.server_host" class="w-full" placeholder="客户端连接的主机地址" />
+            </UFormField>
+          </div>
+
+          <div class="flex items-end gap-2">
+            <UFormField label="端口" name="port" required class="flex-1">
               <UInput v-model.number="state.port" type="number" min="1" max="65535" class="w-full" />
+            </UFormField>
+            <UButton
+              icon="i-lucide-arrow-right"
+              variant="soft"
+              color="neutral"
+              size="sm"
+              title="复制到服务器端口"
+              @click="state.server_port = state.port || 443"
+            />
+            <UFormField label="服务器端口" name="server_port" required class="flex-1">
+              <UInput v-model.number="state.server_port" type="number" min="1" max="65535" class="w-full" />
             </UFormField>
           </div>
         </div>
